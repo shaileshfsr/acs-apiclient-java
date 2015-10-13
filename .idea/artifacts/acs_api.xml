@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" build-on-make="true" name="acs_api">
+    <output-path>$PROJECT_DIR$/out/artifacts/acs_api</output-path>
+    <root id="archive" name="acs_api.jar">
+      <element id="module-output" name="AcpApiJ" />
+    </root>
+  </artifact>
+</component>
