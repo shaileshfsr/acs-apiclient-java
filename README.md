@@ -7,6 +7,9 @@ Dependencies
  - org.apache.logging.log4j: log4j-api (2.4)
  - org.apache.logging.log4j: log4j-core (2.4)
  - jdk <1.8>
+ - (optional for Date Support) com.fasterxml.jackson.core: jackson-core (2.6.1)
+ - (optional for Date Support) com.fasterxml.jackson.core: jackson-annotations (2.6.1)
+ - (optional for Date Support) com.fasterxml.jackson.core: jackson-databind (2.6.1)
 
 Logging Setup (log4j2.xml)
 ```xml
