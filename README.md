@@ -81,3 +81,68 @@ public static void main(String[] args){
 ```
 Note: The exact syntax of your RestEngine and how to invoke it may differ; this sample
 looks and feels how OkHttp works.
+```java
+	//TestCustomDate()
+	AcsApiDateRangeBuilder dateBuilder = new AcsApiDateRangeBuilder();
+	Date dtStart = new GregorianCalendar(1977, 8, 15).getTime();
+	Date dtEnd = new GregorianCalendar(1997, 8, 15).getTime();
+	dateBuilder.SetCustomDateRange(dtStart, dtEnd);
+	String result = dateBuilder.DateRange.ToAcsApiJson();
+	// {"c":"G","r":"CUSTOM","f":"1977-09-15","l":"1997-09-15"}
+	_logger.info(result);
+
+	//TestCustomRelativeDate()
+	Date stEnable = new GregorianCalendar(1977, 8, 15).getTime();
+	dateBuilder = new AcsApiDateRangeBuilder(stEnable);
+	dateBuilder.SetAbsoluteDateRangeSequence(2, AcsApiDateRange.AcsApiRangeSequence.DAYS, AcsApiDateRange.AcsApiPeriodModifier.PRIOR);
+	result = dateBuilder.DateRange.ToAcsApiJson();
+	//{"a":"1977-09-15","c":"G","r":"DAYS","n":2,"p":"PRIOR"}
+	_logger.info(result);
+
+	//TestCalendarYearDefined()
+	dateBuilder = new AcsApiDateRangeBuilder();
+	dateBuilder.SetAbsoluteDateRange(AcsApiDateRange.AcsApiRange.YEAR, 2013);
+	result = dateBuilder.DateRange.ToAcsApiJson();
+	//{"c":"G","r":"YEAR","n":2013,"p":"DEFINED"}
+	_logger.info(result);
+
+	//TestTwoDaysPrior()
+	dateBuilder = new AcsApiDateRangeBuilder();
+	dateBuilder.SetAbsoluteDateRangeSequence(2, AcsApiDateRange.AcsApiRangeSequence.DAYS, AcsApiDateRange.AcsApiPeriodModifier.PRIOR);
+	result = dateBuilder.DateRange.ToAcsApiJson();
+	//{"c":"G","r":"DAYS","n":2,"p":"PRIOR"}
+	_logger.info(result);
+
+	//TestThirdMonthPrior()
+	dateBuilder = new AcsApiDateRangeBuilder();
+	dateBuilder.SetAbsoluteDateRange(AcsApiDateRange.AcsApiRange.MONTH, 3, AcsApiDateRange.AcsApiPeriodModifier.PRIOR);
+	result = dateBuilder.DateRange.ToAcsApiJson();
+	//{"c":"G","r":"MONTH","n":3,"p":"PRIOR"}
+	_logger.info(result);
+
+	//TestCurrentMonth()
+	dateBuilder = new AcsApiDateRangeBuilder();
+	dateBuilder.SetAbsoluteDateRange(AcsApiDateRange.AcsApiRange.YEAR, 2011, AcsApiDateRange.AcsApiPeriodModifier.PRIOR_YEAR);
+	result = dateBuilder.DateRange.ToAcsApiJson();
+	//{"c":"G","r":"YEAR","n":2011,"p":"PRIOR_YEAR"}
+	_logger.info(result);
+
+	//TestCustomCalendar()
+	dateBuilder = new AcsApiDateRangeBuilder();
+	dateBuilder.UseCustomCalendar("abc12345");
+	dateBuilder.SetAbsoluteDateRange(AcsApiDateRange.AcsApiRange.MONTH, 0, AcsApiDateRange.AcsApiPeriodModifier.CURRENT);
+	result = dateBuilder.DateRange.ToAcsApiJson();
+	//{"c":"G","r":"MONTH","k":"abc12345","p":"CURRENT"}
+	_logger.info(result);
+
+	//TestManualDateRange()
+	AcsApiDateRange dateRange = new AcsApiDateRange();
+	dateRange.Range = "YR";
+	dateRange.CustomerKey = "abc12345";
+	dateRange.PeriodModifier = AcsApiDateRange.AcsApiPeriodModifier.CURRENT.toString();
+	result = dateRange.ToAcsApiJson();
+	//{"r":"YR","k":"abc12345","p":"CURRENT"}
+	_logger.info(result);
+```
+### Date Usage
+
