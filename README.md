@@ -3,10 +3,10 @@ Answers Cloud Services API Client Library for Java
 Helper library for connecting to the Answers Cloud Services (ForeSee in particular) web API in a headless manner from Java. You can use this to simplify connecting to the ACS api without requiring a browser or user interaction to grant access to a particular account.
 ###Installation
 Dependencies
--com.squareup.okhttp: okhttp (2.5.0)
--org.apache.logging.log4j: log4j-api (2.4)
--org.apache.logging.log4j: log4j-core (2.4)
--jdk <1.8>
+ - com.squareup.okhttp: okhttp (2.5.0)
+ - org.apache.logging.log4j: log4j-api (2.4)
+ - org.apache.logging.log4j: log4j-core (2.4)
+ - jdk <1.8>
 
 Logging Setup (log4j2.xml)
 ```xml
