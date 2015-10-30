@@ -24,6 +24,8 @@ THE SOFTWARE.
 
 package com.foresee.date;
 
+import com.foresee.interfaces.logging.LoggerAbstraction;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
@@ -35,17 +37,17 @@ public class AcsApiDateRangeBuilder
     public final AcsApiDateRange DateRange;
     private static final String DateFormat = "yyyy-MM-dd";
 
-    public AcsApiDateRangeBuilder(){
-        this(null, AcsApiDateRange.AcsApiCalendarType.G);
+    public AcsApiDateRangeBuilder(LoggerAbstraction logger){
+        this(null, AcsApiDateRange.AcsApiCalendarType.G, logger);
     }
 
-    public AcsApiDateRangeBuilder(Date relativeDate){
-        this(relativeDate, AcsApiDateRange.AcsApiCalendarType.G);
+    public AcsApiDateRangeBuilder(Date relativeDate, LoggerAbstraction logger){
+        this(relativeDate, AcsApiDateRange.AcsApiCalendarType.G, logger);
     }
 
-    public AcsApiDateRangeBuilder(Date relativeDate, AcsApiDateRange.AcsApiCalendarType calendar)
+    public AcsApiDateRangeBuilder(Date relativeDate, AcsApiDateRange.AcsApiCalendarType calendar, LoggerAbstraction logger)
     {
-        this.DateRange = new AcsApiDateRange();
+        this.DateRange = new AcsApiDateRange(logger);
 
         if (relativeDate != null) {
             this.DateRange.AsOfDate = FormattedDate(relativeDate);

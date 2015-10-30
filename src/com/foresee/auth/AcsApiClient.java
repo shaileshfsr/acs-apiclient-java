@@ -26,9 +26,8 @@ THE SOFTWARE.
 package com.foresee.auth;
 
 import com.foresee.auth.oauth.*;
-import com.squareup.okhttp.*;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.foresee.interfaces.http.*;
+import com.foresee.interfaces.logging.LoggerAbstraction;
 
 import java.io.UnsupportedEncodingException;
 import java.net.*;
@@ -38,11 +37,23 @@ import java.util.*;
  * Created by bradley.bax on 10/7/2015.
  */
 public class AcsApiClient {
-    final static Logger _logger = LogManager.getLogger(AcsApiClient.class);
+    private LoggerAbstraction _logger = null;
+    private ClientBuilderAbstraction _httpClientBuilder = null;
+    private RequestBuilderAbstraction _requestBuilder = null;
+    private PostBodyBuilderAbstraction _postBodyBuilder = null;
 
     protected AcsApiClientConfig _configuration;
-    public AcsApiClient(AcsApiClientConfig configuration){
+
+    public AcsApiClient(AcsApiClientConfig configuration,
+                        ClientBuilderAbstraction clientBuilder,
+                        RequestBuilderAbstraction requestBuilder,
+                        PostBodyBuilderAbstraction postBodyBuilder,
+                        LoggerAbstraction logger){
+        _logger = logger;
+        _httpClientBuilder = clientBuilder;
         _configuration = configuration;
+        _requestBuilder = requestBuilder;
+        _postBodyBuilder = postBodyBuilder;
     }
 
     private String GetOAuthHeader(OAuthAccessor auth, String type, String url){
@@ -57,7 +68,7 @@ public class AcsApiClient {
         }
     }
 
-    private Response GetTokenRequest(CookieManager mng){
+    private ResponseAbstraction GetTokenRequest(CookieManager mng){
         String authHeader = null;
         OAuthAccessor auth = null;
         try{
@@ -74,12 +85,13 @@ public class AcsApiClient {
         }
 
         try{
-            Request request = new Request.Builder()
-                    .url(auth.consumer.serviceProvider.requestTokenURL)
-                    .header("Authorization", authHeader).build();
+            RequestAbstraction request = _requestBuilder.builder()
+                    .withUrl(auth.consumer.serviceProvider.requestTokenURL)
+                    .withHeader("Authorization", authHeader).build();
 
-            OkHttpClient client = new OkHttpClient();
-            client.setCookieHandler(mng);
+            ClientAbstraction client = _httpClientBuilder.create();
+            client.setCookieManager(mng);
+
             return client.newCall(request).execute();
         }catch(Exception exc){
             _logger.error(exc.getMessage());
@@ -90,15 +102,15 @@ public class AcsApiClient {
     private boolean InvokeLogin(String username, String password, CookieManager mng){
         try{
             String postDetails = "j_username=" + username + "&j_password=" + password;
-            RequestBody body = RequestBody.create(MediaType.parse("application/x-www-form-urlencoded"), postDetails);
+            PostBodyAbstraction body = _postBodyBuilder.create("application/x-www-form-urlencoded", postDetails);
 
             String loginUrl = _configuration.ForeseeServicesUri + _configuration.LoginAction;
-            Request request = new Request.Builder().url(loginUrl).post(body).build();
+            RequestAbstraction request = _requestBuilder.builder().withUrl(loginUrl).withPostBody(body).build();
 
-            OkHttpClient client = new OkHttpClient();
-            client.setCookieHandler(mng);
+            ClientAbstraction client = _httpClientBuilder.create();
+            client.setCookieManager(mng);
             client.setFollowRedirects(false);
-            Response response = client.newCall(request).execute();
+            ResponseAbstraction response = client.newCall(request).execute();
             return response.isRedirect();
 
         }catch(Exception exc){
@@ -114,7 +126,10 @@ public class AcsApiClient {
         for(String result : splitStep1){
             _logger.debug(result);
             String[] props = result.split("=");
-            settings.putIfAbsent(props[0], props[1]);
+            if(!settings.containsKey(props[0])){
+                settings.put(props[0], props[1]);
+            }
+            //settings.putIfAbsent(props[0], props[1]);
         }
         return settings;
     }
@@ -129,16 +144,16 @@ public class AcsApiClient {
         }
 
         try{
-            Request request = new Request.Builder()
-                    .url(auth.consumer.serviceProvider.userAuthorizationURL+"?oauth_token="+_configuration.AccessToken)
+            RequestAbstraction request = _requestBuilder.builder()
+                    .withUrl(auth.consumer.serviceProvider.userAuthorizationURL + "?oauth_token=" + _configuration.AccessToken)
                     .build();
 
-            OkHttpClient client = new OkHttpClient();
-            client.setCookieHandler(mng);
+            ClientAbstraction client = _httpClientBuilder.create();
+            client.setCookieManager(mng);
             client.setFollowRedirects(false);
-            Response response = client.newCall(request).execute();
+            ResponseAbstraction response = client.newCall(request).execute();
             if(response.isRedirect()){
-                return response.header("Location");
+                return response.getHeader("Location");
             }
             return null;
 
@@ -166,17 +181,25 @@ public class AcsApiClient {
         return new OAuthAccessor(consumer);
     }
 
-    private HashMap<String, String> ParseGetTokenResponse(Response response){
+    private HashMap<String, String> ParseGetTokenResponse(ResponseAbstraction response){
         HashMap<String, String> tokenDetails;
         try{
-            tokenDetails = getOAuthToken(response.body().string());
-            String token = tokenDetails.getOrDefault("oauth_token", null);
+            tokenDetails = getOAuthToken(response.getBody().asString());
+
+            String token = "";
+            if(tokenDetails.containsKey("oauth_token")){
+                token = tokenDetails.get("oauth_token");
+            }
+            //String token = tokenDetails.getOrDefault("oauth_token", null);
             if(token == null){
                 _logger.error("Missing oauth_token object");
                 return null;
             }
 
-            String tokenSecret = tokenDetails.getOrDefault("oauth_token_secret", null);
+            String tokenSecret = "";//tokenDetails.getOrDefault("oauth_token_secret", null);
+            if(tokenDetails.containsKey("oauth_token_secret")){
+                tokenSecret = tokenDetails.get("oauth_token_secret");
+            }
             if(tokenSecret == null){
                 _logger.error("Missing oauth_token_secret object");
                 return null;
@@ -189,11 +212,11 @@ public class AcsApiClient {
     }
 
     // bbax: borrowed from http://stackoverflow.com/questions/13592236/parse-the-uri-string-into-name-value-collection-in-java
-    private static Map<String, List<String>> splitQuery(URL url) throws UnsupportedEncodingException {
+    private Map<String, List<String>> splitQuery(URL url) throws UnsupportedEncodingException {
         return splitUrlLikeString(url.getQuery());
     }
 
-    private static Map<String, List<String>> splitUrlLikeString(String target){
+    private Map<String, List<String>> splitUrlLikeString(String target){
         final Map<String, List<String>> query_pairs = new LinkedHashMap<String, List<String>>();
         final String[] pairs = target.split("&");
         for (String pair : pairs) {
@@ -253,14 +276,14 @@ public class AcsApiClient {
         }
 
         try{
-            Request request = new Request.Builder()
-                    .url(auth.consumer.serviceProvider.accessTokenURL)
-                    .header("Authorization", authHeader).build();
+            RequestAbstraction request = _requestBuilder.builder()
+                    .withUrl(auth.consumer.serviceProvider.accessTokenURL)
+                    .withHeader("Authorization", authHeader).build();
 
-            OkHttpClient client = new OkHttpClient();
-            client.setCookieHandler(mng);
-            Response response = client.newCall(request).execute();
-            String responseBody = response.body().string();
+            ClientAbstraction client = _httpClientBuilder.create();
+            client.setCookieManager(mng);
+            ResponseAbstraction response = client.newCall(request).execute();
+            String responseBody = response.getBody().asString();
             _logger.debug(responseBody);
             return splitUrlLikeString(responseBody);
         }catch(Exception exc){
@@ -283,8 +306,9 @@ public class AcsApiClient {
         CookieHandler.setDefault(mng);
         mng.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
 
-        Response authTokenResponse = GetTokenRequest(mng);
+        ResponseAbstraction authTokenResponse = GetTokenRequest(mng);
         if(authTokenResponse == null){
+            _logger.debug("failed get token request");
             return false;
         }
 

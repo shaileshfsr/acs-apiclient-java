@@ -27,8 +27,7 @@ package com.foresee.date;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.foresee.interfaces.logging.LoggerAbstraction;
 
 import java.io.ByteArrayOutputStream;
 
@@ -37,7 +36,18 @@ import java.io.ByteArrayOutputStream;
  */
 public class AcsApiDateRange
 {
-    final static Logger _logger = LogManager.getLogger(AcsApiDateRange.class);
+    private static LoggerAbstraction _logger;
+
+    // bbax: this is used by the json engine during deserialization to string... seems like a strange requirement
+    // to map from object -> string... beware the dangers of no logging
+    public AcsApiDateRange(){
+
+    }
+
+    public AcsApiDateRange(LoggerAbstraction logger){
+        _logger = logger;
+    }
+
     public enum AcsApiCalendarType
     {
         G, GREGORIAN, FISCAL

@@ -3,30 +3,69 @@ Answers Cloud Services API Client Library for Java
 Helper library for connecting to the Answers Cloud Services (ForeSee in particular) web API in a headless manner from Java. You can use this to simplify connecting to the ACS api without requiring a browser or user interaction to grant access to a particular account.
 ###Installation
 Dependencies
- - com.squareup.okhttp: okhttp (2.5.0)
- - org.apache.logging.log4j: log4j-api (2.4)
- - org.apache.logging.log4j: log4j-core (2.4)
- - jdk <1.8>
+ - jdk <1.5+>: Recommended 1.7+ due to lack of SSL support
  - (optional for Date Support) com.fasterxml.jackson.core: jackson-core (2.6.1)
  - (optional for Date Support) com.fasterxml.jackson.core: jackson-annotations (2.6.1)
  - (optional for Date Support) com.fasterxml.jackson.core: jackson-databind (2.6.1)
 
-Logging Setup (log4j2.xml)
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="INFO">
-    <Appenders>
-        <Console name="Console" target="SYSTEM_OUT">
-            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5p %c{1}:%L - %msg%n" />
-        </Console>
+Logging Setup (LoggerAbstraction class)
+Implement this contract in your source code and provide an instance of your implementation
+to the AcsApiClient.
+```java
+public abstract class LoggerAbstraction {
+    public abstract void debug(String message);
+    public abstract void error(String message);
+    public abstract void error(String message, Exception exc);
+    public abstract void warn(String message);
+    public abstract void info(String message);
+}
+```
 
-    </Appenders>
-    <Loggers>
-        <Root level="debug">
-            <AppenderRef ref="Console" />
-        </Root>
-    </Loggers>
-</Configuration>
+###SSL/HTTPS Security Issues
+If you are using a public release of the JDK earlier then 1.7 you will not be able to authenticate against our certificates
+as they are too new and we no longer support certificate stacks from so long ago which are insecure.  Attempts to use this library 
+will result in a crash if you do not override the certificate validation code of the Java framework and bypass certificate authentication 
+(or program your own certificate validation mechanism to bring 1.5 and 1.6 up-to-date).
+
+Warning: Bypassing certificates is dangerous!
+
+An example for how to override the certificate management.
+```java
+static{
+	TrustManager[] trustAllCertificates = new TrustManager[] {
+		new X509TrustManager() {
+			@Override
+			public void checkClientTrusted(java.security.cert.X509Certificate[] x509Certificates, String s) throws CertificateException {}
+
+			@Override
+			public void checkServerTrusted(java.security.cert.X509Certificate[] x509Certificates, String s) throws CertificateException {}
+
+			@Override
+			public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+				return null;
+			}
+
+		}
+	};
+
+	HostnameVerifier trustAllHostnames = new HostnameVerifier() {
+		@Override
+		public boolean verify(String hostname, SSLSession session) {
+			return true; // Just allow them all.
+		}
+	};
+
+	try {
+		System.setProperty("jsse.enableSNIExtension", "false");
+		SSLContext sc = SSLContext.getInstance("SSL");
+		sc.init(null, trustAllCertificates, new SecureRandom());
+		HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+		HttpsURLConnection.setDefaultHostnameVerifier(trustAllHostnames);
+	}
+	catch (GeneralSecurityException e) {
+		throw new ExceptionInInitializerError(e);
+	}
+}
 ```
 
 ###Simple Usage
@@ -39,16 +78,16 @@ private static Response MakeCurrentUserRequest(AcsApiClient apiClient){
 		// request signature for the url: since /currentUser action is a GET action signature
 		// should be generated for a GET method.  OAuthMessage includes definitions for most
 		// major REST actions (and all REST actions you should encounter on Foresee services)
-		String authorizeSignature = apiClient.getSignedUrl(OAuthMessage.GET, getTarget)
+		String authorizeSignature = apiClient.getSignedUrl(OAuthMessage.GET, getTarget);
 				
 		// Make a standard REST request adding the signature calculated above
 		// The authorizeSignature may be empty at this point, you will receive
 		// a 401 from the server and must invoke InitializeOAuth() and try again
 		// If the token has expired you will receive 401 and must InitializeOAuth()
 		// and re-invoke as well
-		Request request = new Request.Builder().url(postTarget)
-				.header("Authorization", authorizeSignature).build();
-		OkHttpClient client = new OkHttpClient();
+		RequestAbstraction request = new RequestBuilderImp().builder().withUrl(postTarget)
+				.withHeader("Authorization", authorizeSignature).build();
+		ClientAbstraction client = new ClientBuilderImp().create();
 		return client.newCall(request).execute();
 	}catch(Exception exc){
 		_logger.error("Failed to make current user request: " + exc.getMessage());
@@ -59,7 +98,13 @@ private static Response MakeCurrentUserRequest(AcsApiClient apiClient){
 public static void main(String[] args){
 	AcsApiClientConfig config = new AcsApiClientConfig(
 		"clientId", "clientSecret", "user_name", "password");
-	AcsApiClient apiClient = new AcsApiClient(config);
+		
+	// bbax: LoggerImp() is a class you will define in your own source code
+	// ClientBuilderImp(), RequestBuilderImp() and PostBodyBuilderImp() are all
+	// provided by the API if you wish to use our libraries.  Otherwise the interfaces
+	// can be implemented for your own desired HTTP engine following the contracts at:
+	// com.foresee.interfaces.http.*
+	AcsApiClient apiClient = new AcsApiClient(config, new ClientBuilderImp(), new RequestBuilderImp(), new PostBodyBuilderImp(), new LoggerImp());
 
 	Response response = MakeCurrentUserRequest(apiClient);
 
