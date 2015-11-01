@@ -33,8 +33,6 @@ package com.foresee.auth.oauth.signature;
         import com.foresee.auth.oauth.OAuthException;
         import com.foresee.auth.oauth.OAuthMessage;
         import com.foresee.auth.oauth.OAuthProblemException;
-        import org.apache.logging.log4j.LogManager;
-        import org.apache.logging.log4j.Logger;
 
 /**
  * A pair of algorithms for computing and verifying an OAuth digital signature.
