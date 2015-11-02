@@ -10,7 +10,8 @@ Dependencies
 
 Logging Setup (LoggerAbstraction class)
 Implement this contract in your source code and provide an instance of your implementation
-to the AcsApiClient.
+to the AcsApiClient.  Optionally: the AcsApiClient can receive null as a parameter and it will
+ignore logging.
 ```java
 public abstract class LoggerAbstraction {
     public abstract void debug(String message);
