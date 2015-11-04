@@ -28,6 +28,7 @@ package com.foresee.auth;
 import com.foresee.auth.oauth.*;
 import com.foresee.interfaces.http.*;
 import com.foresee.interfaces.logging.LoggerAbstraction;
+import com.foresee.logging.LogManager;
 
 import java.io.UnsupportedEncodingException;
 import java.net.*;
@@ -37,7 +38,7 @@ import java.util.*;
  * Created by bradley.bax on 10/7/2015.
  */
 public class AcsApiClient {
-    private LoggerAbstraction _logger = null;
+    private LogManager _logger = null;
     private ClientBuilderAbstraction _httpClientBuilder = null;
     private RequestBuilderAbstraction _requestBuilder = null;
     private PostBodyBuilderAbstraction _postBodyBuilder = null;
@@ -49,7 +50,7 @@ public class AcsApiClient {
                         RequestBuilderAbstraction requestBuilder,
                         PostBodyBuilderAbstraction postBodyBuilder,
                         LoggerAbstraction logger){
-        _logger = logger;
+        _logger = new LogManager(logger);
         _httpClientBuilder = clientBuilder;
         _configuration = configuration;
         _requestBuilder = requestBuilder;
