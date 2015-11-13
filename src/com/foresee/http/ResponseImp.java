@@ -62,11 +62,12 @@ public class ResponseImp extends ResponseAbstraction<ResponseImp> {
     @Override
     public ResponseBodyAbstraction getBody() {
         try {
-            if(_connection.getResponseCode() != 200){
-                return null;
+            InputStream inputStream;
+            if(_connection.getResponseCode() >= 200 && _connection.getResponseCode() < 300) {
+                inputStream = _connection.getInputStream();
+            } else {
+                inputStream = _connection.getErrorStream();
             }
-
-            InputStream inputStream = _connection.getInputStream();
 
             Scanner scan = new Scanner(inputStream, "UTF-8").useDelimiter("\\A");
             String loadString = scan.next();
