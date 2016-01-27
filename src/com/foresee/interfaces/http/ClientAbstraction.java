@@ -32,6 +32,7 @@ import java.net.CookieManager;
 public abstract class ClientAbstraction<T> {
     public abstract void setCookieManager(CookieManager mng);
     public abstract void setFollowRedirects(boolean bFollowRedirects);
+    public abstract ClientAbstraction withProxy(ProxyAbstraction proxy);
     public abstract ClientAbstraction newCall(RequestAbstraction request);
     public abstract ResponseAbstraction execute();
     public abstract T reference();

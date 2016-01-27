@@ -25,6 +25,7 @@ THE SOFTWARE.
 package com.foresee.http;
 
 import com.foresee.interfaces.http.ClientAbstraction;
+import com.foresee.interfaces.http.ProxyAbstraction;
 import com.foresee.interfaces.http.RequestAbstraction;
 import com.foresee.interfaces.http.ResponseAbstraction;
 
@@ -38,6 +39,8 @@ import java.util.Map;
  */
 public class ClientImp extends ClientAbstraction<ClientImp> {
     private RequestImp _stagedRequest = null;
+    private ProxyImp _stagedProxy = null;
+    private static Object _lock = new Object();
     @Override
     public void setCookieManager(CookieManager mng) {
         CookieHandler.setDefault(mng);
@@ -49,6 +52,12 @@ public class ClientImp extends ClientAbstraction<ClientImp> {
     }
 
     @Override
+    public ClientAbstraction withProxy(ProxyAbstraction proxy) {
+        _stagedProxy = (ProxyImp)proxy;
+        return this;
+    }
+
+    @Override
     public ClientAbstraction newCall(RequestAbstraction request) {
         _stagedRequest = (RequestImp)request.reference();
         return this;
@@ -56,41 +65,48 @@ public class ClientImp extends ClientAbstraction<ClientImp> {
 
     @Override
     public ResponseAbstraction execute() {
-        try {
-            URL request_url = _stagedRequest.getUrl();
-            URLConnection connection = request_url.openConnection();
+        synchronized (_lock) {
+            try {
+                URL request_url = _stagedRequest.getUrl();
+                URLConnection connection = null;
+                if (_stagedProxy != null) {
+                    connection = request_url.openConnection(_stagedProxy.reference());
+                } else {
+                    connection = request_url.openConnection();
+                }
 
-            HashMap<String, String> extraHeaders = _stagedRequest.getAdditionalHeaders();
-            for(Map.Entry<String, String> entry : extraHeaders.entrySet()){
-                String key = entry.getKey();
-                String value = entry.getValue();
+                HashMap<String, String> extraHeaders = _stagedRequest.getAdditionalHeaders();
+                for (Map.Entry<String, String> entry : extraHeaders.entrySet()) {
+                    String key = entry.getKey();
+                    String value = entry.getValue();
 
-                connection.setRequestProperty(key, value);
+                    connection.setRequestProperty(key, value);
+                }
+
+                connection.setRequestProperty("Accept-Charset", _stagedRequest.defaultCharSet);
+
+                if (_stagedRequest.IsPost()) {
+                    connection.setDoOutput(true);
+                    connection.setRequestProperty("Content-Type", _stagedRequest.ContentType());
+
+                    OutputStream output = connection.getOutputStream();
+                    try {
+                        output.write(_stagedRequest.GetBodyBytes());
+                    } catch (Exception exc) {
+                        return null;
+                    } finally {
+                        output.flush();
+                        output.close();
+                    }
+                }
+
+                ResponseImp resultForReturn = new ResponseImp((HttpURLConnection)connection);
+                return resultForReturn;
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-            connection.setRequestProperty("Accept-Charset", _stagedRequest.defaultCharSet);
-
-            if(_stagedRequest.IsPost()){
-                connection.setDoOutput(true);
-                connection.setRequestProperty("Content-Type", _stagedRequest.ContentType());
-
-                OutputStream output = connection.getOutputStream();
-                try{
-                    output.write(_stagedRequest.GetBodyBytes());
-                }
-                catch(Exception exc){
-                    return null;
-                }
-                finally {
-                    output.flush();
-                    output.close();
-                }
-            }
-            return new ResponseImp((HttpURLConnection)connection);
-        } catch (Exception e) {
-            e.printStackTrace();
+            return null;
         }
-        return null;
     }
 
     @Override
