@@ -33,6 +33,7 @@ package com.foresee.auth.oauth.signature;
         import com.foresee.auth.oauth.OAuthException;
         import com.foresee.auth.oauth.OAuthMessage;
         import com.foresee.auth.oauth.OAuthProblemException;
+        import com.foresee.interfaces.logging.LoggerAbstraction;
 
 /**
  * A pair of algorithms for computing and verifying an OAuth digital signature.
@@ -44,6 +45,7 @@ package com.foresee.auth.oauth.signature;
  * @author John Kristian
  */
 public abstract class OAuthSignatureMethod {
+    public static LoggerAbstraction Logger;
     /** Add a signature to the message.
      * @throws URISyntaxException
      * @throws IOException */
@@ -147,6 +149,15 @@ public abstract class OAuthSignatureMethod {
             parameters.addAll(message.getParameters());
             url = url.substring(0, q);
         }
+
+        if(Logger != null) {
+            Logger.debug("Base String");
+            Logger.debug(OAuth.percentEncode(message.method.toUpperCase()));
+            Logger.debug(OAuth.percentEncode(normalizeUrl(url)));
+            Logger.debug(OAuth.percentEncode(normalizeParameters(parameters)));
+            Logger.debug("Done...");
+        }
+
         return OAuth.percentEncode(message.method.toUpperCase()) + '&'
                 + OAuth.percentEncode(normalizeUrl(url)) + '&'
                 + OAuth.percentEncode(normalizeParameters(parameters));

@@ -43,6 +43,8 @@ public class AcsApiClient {
     private RequestBuilderAbstraction _requestBuilder = null;
     private PostBodyBuilderAbstraction _postBodyBuilder = null;
 
+    private static Object _lock = new Object();
+
     protected AcsApiClientConfig _configuration;
 
     public AcsApiClient(AcsApiClientConfig configuration,
@@ -294,77 +296,80 @@ public class AcsApiClient {
     }
 
     public String getSignedUrl(String httpMethod, String url){
-        OAuthAccessor auth = ConstructOAuthEngine(false);
-        auth.accessToken = _configuration.AccessToken;
-        auth.tokenSecret = _configuration.AccessSecret;
-        return GetOAuthHeader(auth, httpMethod, url);
+        synchronized (_lock) {
+            OAuthAccessor auth = ConstructOAuthEngine(false);
+            auth.accessToken = _configuration.AccessToken;
+            auth.tokenSecret = _configuration.AccessSecret;
+            return GetOAuthHeader(auth, httpMethod, url);
+        }
     }
 
     public boolean InitializeOAuth(){
-        // bbax: very important... propagating the cookies from call to call has to be
-        // managed or the jboss backend gets angry...
-        CookieManager mng = new CookieManager();
-        CookieHandler.setDefault(mng);
-        mng.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
+        synchronized (_lock) {
+            // bbax: very important... propagating the cookies from call to call has to be
+            // managed or the jboss backend gets angry...
+            CookieManager mng = new CookieManager();
+            CookieHandler.setDefault(mng);
+            mng.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
 
-        ResponseAbstraction authTokenResponse = GetTokenRequest(mng);
-        if(authTokenResponse == null){
-            _logger.debug("failed get token request");
-            return false;
-        }
-
-        HashMap<String, String> getTokenResponse = ParseGetTokenResponse(authTokenResponse);
-        if(getTokenResponse == null){
-            return false;
-        }
-
-        // bbax: foresee divergence.. relies on no data, this isn't really an oAuth thing...
-        if(!InvokeLogin(_configuration.Username, _configuration.Password, mng)){
-            _logger.error("Failed invoke login end-point.. server error");
-            return false;
-        }
-
-        String verifier = null;
-        try {
-            _configuration.AccessToken = getTokenResponse.get("oauth_token");
-            _configuration.AccessSecret = getTokenResponse.get("oauth_token_secret");
-            String authorizeResponse = AuthorizeToken(mng);
-            if(authorizeResponse == null){
+            ResponseAbstraction authTokenResponse = GetTokenRequest(mng);
+            if (authTokenResponse == null) {
+                _logger.debug("failed get token request");
                 return false;
             }
-            _logger.debug(authorizeResponse);
-            verifier = getVerifierFromRedirect(authorizeResponse);
-            if(verifier==null){
+
+            HashMap<String, String> getTokenResponse = ParseGetTokenResponse(authTokenResponse);
+            if (getTokenResponse == null) {
                 return false;
             }
-        }catch(Exception exc){
-            _logger.error(exc.getMessage());
-            return false;
-        }
 
-        Map<String, List<String>> tokens = RequestAccessToken(mng, verifier);
-        if(tokens == null ||
-                !tokens.containsKey("oauth_token") || tokens.get("oauth_token").size() < 1 ||
-                !tokens.containsKey("oauth_token_secret") || tokens.get("oauth_token_secret").size() < 1){
-            return false;
-        }
+            // bbax: foresee divergence.. relies on no data, this isn't really an oAuth thing...
+            if (!InvokeLogin(_configuration.Username, _configuration.Password, mng)) {
+                _logger.error("Failed invoke login end-point.. server error");
+                return false;
+            }
 
-        if(tokens.get("oauth_token").size() > 1 ||
-                tokens.get("oauth_token_secret").size() > 1){
-            _logger.warn("Too many authorization tokens found.");
-        }
+            String verifier = null;
+            try {
+                _configuration.AccessToken = getTokenResponse.get("oauth_token");
+                _configuration.AccessSecret = getTokenResponse.get("oauth_token_secret");
+                String authorizeResponse = AuthorizeToken(mng);
+                if (authorizeResponse == null) {
+                    return false;
+                }
+                _logger.debug(authorizeResponse);
+                verifier = getVerifierFromRedirect(authorizeResponse);
+                if (verifier == null) {
+                    return false;
+                }
+            } catch (Exception exc) {
+                _logger.error(exc.getMessage());
+                return false;
+            }
 
-        try{
-            _configuration.AccessToken = tokens.get("oauth_token").get(0);
-            _configuration.AccessSecret = tokens.get("oauth_token_secret").get(0);
+            Map<String, List<String>> tokens = RequestAccessToken(mng, verifier);
+            if (tokens == null ||
+                    !tokens.containsKey("oauth_token") || tokens.get("oauth_token").size() < 1 ||
+                    !tokens.containsKey("oauth_token_secret") || tokens.get("oauth_token_secret").size() < 1) {
+                return false;
+            }
 
-            _logger.debug("Final token: " + _configuration.AccessToken);
-            _logger.debug("Final secret: " + _configuration.AccessSecret);
+            if (tokens.get("oauth_token").size() > 1 ||
+                    tokens.get("oauth_token_secret").size() > 1) {
+                _logger.warn("Too many authorization tokens found.");
+            }
+
+            try {
+                _configuration.AccessToken = tokens.get("oauth_token").get(0);
+                _configuration.AccessSecret = tokens.get("oauth_token_secret").get(0);
+
+                _logger.debug("Final token: " + _configuration.AccessToken);
+                _logger.debug("Final secret: " + _configuration.AccessSecret);
+            } catch (Exception exc) {
+                _logger.error("Failed to process tokens: " + exc.getMessage());
+                return false;
+            }
+            return true;
         }
-        catch(Exception exc){
-            _logger.error("Failed to process tokens: " + exc.getMessage());
-            return false;
-        }
-        return true;
     }
 }

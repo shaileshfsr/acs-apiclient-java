@@ -30,50 +30,66 @@ import com.foresee.interfaces.http.ResponseBodyAbstraction;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.util.IllegalFormatCodePointException;
+import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 /**
  * Created by bradley.bax on 10/29/2015.
  */
 public class ResponseImp extends ResponseAbstraction<ResponseImp> {
-    private HttpURLConnection _connection;
+    private ResponseBodyAbstraction _body;
+    private int _responseStatusCode;
+    private Map<String, List<String>> _headers;
 
-    public ResponseImp(HttpURLConnection connection){
-        _connection = connection;
+    public ResponseImp(HttpURLConnection connection) throws java.io.IOException{
+        _responseStatusCode = connection.getResponseCode();
+        _body = loadBody(connection);
+        _headers = connection.getHeaderFields();
     }
     @Override
     public boolean isRedirect() {
-        try {
-            int response = _connection.getResponseCode();
-            if(response >=300 && response <=399){
-                return true;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        if(_responseStatusCode >=300 && _responseStatusCode <=399){
+            return true;
         }
         return false;
     }
 
     @Override
-    public String getHeader(String key) {
-        return _connection.getHeaderField(key);
+    public String getHeader(String key) throws IllegalStateException {
+        if(_headers != null && _headers.containsKey(key)) {
+            if(_headers.get(key).size() != 1){
+                throw new IllegalStateException("Header should contain a single value [" + key + "]");
+            }
+            return _headers.get(key).get(0);
+        }
+
+        throw new IllegalStateException("Null pointers in header... [" + key + "]");
     }
 
-    @Override
-    public ResponseBodyAbstraction getBody() {
+    private ResponseBodyAbstraction loadBody(HttpURLConnection connection) {
         try {
-            InputStream inputStream;
-            if(_connection.getResponseCode() >= 200 && _connection.getResponseCode() < 300) {
-                inputStream = _connection.getInputStream();
-            } else {
-                inputStream = _connection.getErrorStream();
+            String loadString = "";
+            if(connection.getResponseCode() < 200 || connection.getResponseCode() > 299){
+                InputStream inputStream = connection.getErrorStream();
+                if(inputStream == null){
+                    return null;
+                }
+                Scanner scan = new Scanner(inputStream, "UTF-8").useDelimiter("\\A");
+                loadString = scan.next();
+                inputStream.close();
+                scan.close();
+            }else {
+                InputStream inputStream = connection.getInputStream();
+                if(inputStream == null){
+                    return null;
+                }
+                Scanner scan = new Scanner(inputStream, "UTF-8").useDelimiter("\\A");
+                loadString = scan.next();
+                inputStream.close();
+                scan.close();
             }
-
-            Scanner scan = new Scanner(inputStream, "UTF-8").useDelimiter("\\A");
-            String loadString = scan.next();
-
-            inputStream.close();
-            scan.close();
 
             return new ResponseBodyImp(loadString);
         } catch (IOException e) {
@@ -83,17 +99,17 @@ public class ResponseImp extends ResponseAbstraction<ResponseImp> {
     }
 
     @Override
+    public ResponseBodyAbstraction getBody(){
+        return _body;
+    }
+
+    @Override
     public ResponseImp reference() {
         return this;
     }
 
     @Override
     public int responseCode() {
-        try {
-            return _connection.getResponseCode();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return -1;
+        return _responseStatusCode;
     }
 }
