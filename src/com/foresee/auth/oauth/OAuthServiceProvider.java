@@ -27,14 +27,9 @@ public class OAuthServiceProvider implements Serializable {
 
     private static final long serialVersionUID = 3306534392621038574L;
 
-    public final String requestTokenURL;
-    public final String userAuthorizationURL;
     public final String accessTokenURL;
 
-    public OAuthServiceProvider(String requestTokenURL,
-                                String userAuthorizationURL, String accessTokenURL) {
-        this.requestTokenURL = requestTokenURL;
-        this.userAuthorizationURL = userAuthorizationURL;
+    public OAuthServiceProvider(String accessTokenURL) {
         this.accessTokenURL = accessTokenURL;
     }
 
@@ -44,10 +39,6 @@ public class OAuthServiceProvider implements Serializable {
         int result = 1;
         result = prime * result
                 + ((accessTokenURL == null) ? 0 : accessTokenURL.hashCode());
-        result = prime * result
-                + ((requestTokenURL == null) ? 0 : requestTokenURL.hashCode());
-        result = prime * result
-                + ((userAuthorizationURL == null) ? 0 : userAuthorizationURL.hashCode());
         return result;
     }
 
@@ -65,16 +56,7 @@ public class OAuthServiceProvider implements Serializable {
                 return false;
         } else if (!accessTokenURL.equals(other.accessTokenURL))
             return false;
-        if (requestTokenURL == null) {
-            if (other.requestTokenURL != null)
-                return false;
-        } else if (!requestTokenURL.equals(other.requestTokenURL))
-            return false;
-        if (userAuthorizationURL == null) {
-            if (other.userAuthorizationURL != null)
-                return false;
-        } else if (!userAuthorizationURL.equals(other.userAuthorizationURL))
-            return false;
+
         return true;
     }
 

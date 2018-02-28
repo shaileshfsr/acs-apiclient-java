@@ -25,6 +25,8 @@ THE SOFTWARE.
 
 package com.foresee.auth;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.foresee.auth.oauth.*;
 import com.foresee.interfaces.http.*;
 import com.foresee.interfaces.logging.LoggerAbstraction;
@@ -71,94 +73,24 @@ public class AcsApiClient {
         }
     }
 
-    private ResponseAbstraction GetTokenRequest(CookieManager mng){
-        String authHeader = null;
-        OAuthAccessor auth = null;
-        try{
-            auth = ConstructOAuthEngine(true);
-            authHeader = GetOAuthHeader(auth, OAuthMessage.GET, auth.consumer.serviceProvider.requestTokenURL);
-            _logger.debug("header: " + authHeader);
-            if(authHeader == null){
-                _logger.error("Invalid authentication headers returned " + authHeader);
-                return null;
-            }
-        }catch(Exception exc){
-            _logger.error("GetToken failed to retrieve own authorization header: " + exc.getMessage());
-            return null;
-        }
+
+    private ResponseAbstraction Authenticate(){
+        String loginUrl = _configuration.ForeseeAuthServiceUri + _configuration.AccessLogin;
+
+        AccessRequest accessRequest = new AccessRequest(_configuration.ConsumerKey, _configuration.ConsumerSecret,
+                _configuration.Username, _configuration.Password);
+        PostBodyAbstraction body = _postBodyBuilder.create("application/json", accessRequest.toJson());
 
         try{
             RequestAbstraction request = _requestBuilder.builder()
-                    .withUrl(auth.consumer.serviceProvider.requestTokenURL)
-                    .withHeader("Authorization", authHeader).build();
-
-            ClientAbstraction client = _httpClientBuilder.create();
-            client.setCookieManager(mng);
-
-            return client.newCall(request).execute();
-        }catch(Exception exc){
-            _logger.error(exc.getMessage());
-            return null;
-        }
-    }
-
-    private boolean InvokeLogin(String username, String password, CookieManager mng){
-        try{
-            String postDetails = "j_username=" + username + "&j_password=" + password;
-            PostBodyAbstraction body = _postBodyBuilder.create("application/x-www-form-urlencoded", postDetails);
-
-            String loginUrl = _configuration.ForeseeServicesUri + _configuration.LoginAction;
-            RequestAbstraction request = _requestBuilder.builder().withUrl(loginUrl).withPostBody(body).build();
-
-            ClientAbstraction client = _httpClientBuilder.create();
-            client.setCookieManager(mng);
-            client.setFollowRedirects(false);
-            ResponseAbstraction response = client.newCall(request).execute();
-            return response.isRedirect();
-
-        }catch(Exception exc){
-            _logger.error(exc.getMessage());
-        }
-        return false;
-    }
-
-    private HashMap<String, String> getOAuthToken(String response){
-        _logger.debug(response);
-        HashMap<String, String> settings = new HashMap<String, String>();
-        String[] splitStep1 = response.split("&");
-        for(String result : splitStep1){
-            _logger.debug(result);
-            String[] props = result.split("=");
-            if(!settings.containsKey(props[0])){
-                settings.put(props[0], props[1]);
-            }
-            //settings.putIfAbsent(props[0], props[1]);
-        }
-        return settings;
-    }
-
-    private String AuthorizeToken(CookieManager mng){
-        OAuthAccessor auth = ConstructOAuthEngine(false);
-
-        //bbax: populated by request_token call
-        if(_configuration.AccessToken == null){
-            _logger.error("oauth token was null");
-            return null;
-        }
-
-        try{
-            RequestAbstraction request = _requestBuilder.builder()
-                    .withUrl(auth.consumer.serviceProvider.userAuthorizationURL + "?oauth_token=" + _configuration.AccessToken)
+                    .withUrl(loginUrl)
+                    .withPostBody(body)
                     .build();
 
             ClientAbstraction client = _httpClientBuilder.create();
-            client.setCookieManager(mng);
             client.setFollowRedirects(false);
             ResponseAbstraction response = client.newCall(request).execute();
-            if(response.isRedirect()){
-                return response.getHeader("Location");
-            }
-            return null;
+            return response;
 
         }catch(Exception exc){
             _logger.error(exc.getMessage());
@@ -168,51 +100,16 @@ public class AcsApiClient {
 
     private OAuthAccessor ConstructOAuthEngine(boolean callbackActionRequired){
         OAuthServiceProvider provider = new OAuthServiceProvider(
-                _configuration.ForeseeServicesUri+_configuration.RequestTokenAction,
-                _configuration.ForeseeServicesUri+_configuration.UserAuthorizationAction,
-                _configuration.ForeseeServicesUri+_configuration.AccessTokenAction
+                _configuration.ForeseeServicesUri+_configuration.AccessLogin
         );
 
         String callbackUrl = null;
-        if(callbackActionRequired){
-            callbackUrl = _configuration.ForeseeServicesUri+_configuration.CallbackAction;
-            _logger.debug("setting callback url: "+callbackUrl);
-        }
 
         OAuthConsumer consumer = new OAuthConsumer(callbackUrl, _configuration.ConsumerKey, _configuration.ConsumerSecret, provider);
         consumer.setProperty(OAuth.OAUTH_SIGNATURE_METHOD, OAuth.HMAC_SHA1);
         return new OAuthAccessor(consumer);
     }
 
-    private HashMap<String, String> ParseGetTokenResponse(ResponseAbstraction response){
-        HashMap<String, String> tokenDetails;
-        try{
-            tokenDetails = getOAuthToken(response.getBody().asString());
-
-            String token = "";
-            if(tokenDetails.containsKey("oauth_token")){
-                token = tokenDetails.get("oauth_token");
-            }
-            //String token = tokenDetails.getOrDefault("oauth_token", null);
-            if(token == null){
-                _logger.error("Missing oauth_token object");
-                return null;
-            }
-
-            String tokenSecret = "";//tokenDetails.getOrDefault("oauth_token_secret", null);
-            if(tokenDetails.containsKey("oauth_token_secret")){
-                tokenSecret = tokenDetails.get("oauth_token_secret");
-            }
-            if(tokenSecret == null){
-                _logger.error("Missing oauth_token_secret object");
-                return null;
-            }
-        }catch(Exception exc){
-            _logger.error("Failed to parse the oauth gettoken response: " + exc.getMessage());
-            return null;
-        }
-        return tokenDetails;
-    }
 
     // bbax: borrowed from http://stackoverflow.com/questions/13592236/parse-the-uri-string-into-name-value-collection-in-java
     private Map<String, List<String>> splitQuery(URL url) throws UnsupportedEncodingException {
@@ -238,63 +135,6 @@ public class AcsApiClient {
         return query_pairs;
     }
 
-    private String getVerifierFromRedirect(String fullRedirect){
-        try{
-            final String verifierVal = "oauth_verifier";
-            Map<String, List<String>> parms = splitQuery(new URL(fullRedirect));
-            if(!parms.containsKey(verifierVal) || parms.get(verifierVal).size() < 1){
-                _logger.error("Response did not contain a verifier!");
-                return null;
-            }
-
-            if(parms.get(verifierVal).size() > 1){
-                _logger.warn("multiple oauth verifiers are present!");
-            }
-
-            return parms.get(verifierVal).get(0);
-        }
-        catch(Exception exc){
-            _logger.error("Failed to find a verifier: "+exc.getMessage());
-            return null;
-        }
-    }
-
-    private Map<String, List<String>> RequestAccessToken(CookieManager mng, String verifier){
-        String authHeader = null;
-        OAuthAccessor auth = null;
-        try{
-            auth = ConstructOAuthEngine(false);
-            auth.accessToken = _configuration.AccessToken;
-            auth.tokenSecret = URLDecoder.decode(_configuration.AccessSecret, OAuth.ENCODING);
-            auth.setProperty("oauth_verifier", verifier);
-            authHeader = GetOAuthHeader(auth, OAuthMessage.GET, auth.consumer.serviceProvider.accessTokenURL);
-            _logger.debug("header: " + authHeader);
-            if(authHeader == null){
-                _logger.error("Invalid authentication headers returned " + authHeader);
-                return null;
-            }
-        }catch(Exception exc){
-            _logger.error("GetToken failed to retrieve own authorization header: " + exc.getMessage());
-            return null;
-        }
-
-        try{
-            RequestAbstraction request = _requestBuilder.builder()
-                    .withUrl(auth.consumer.serviceProvider.accessTokenURL)
-                    .withHeader("Authorization", authHeader).build();
-
-            ClientAbstraction client = _httpClientBuilder.create();
-            client.setCookieManager(mng);
-            ResponseAbstraction response = client.newCall(request).execute();
-            String responseBody = response.getBody().asString();
-            _logger.debug(responseBody);
-            return splitUrlLikeString(responseBody);
-        }catch(Exception exc){
-            _logger.error("Failed request access token: " + exc.getMessage());
-            return null;
-        }
-    }
-
     public String getSignedUrl(String httpMethod, String url){
         synchronized (_lock) {
             OAuthAccessor auth = ConstructOAuthEngine(false);
@@ -306,62 +146,18 @@ public class AcsApiClient {
 
     public boolean InitializeOAuth(){
         synchronized (_lock) {
-            // bbax: very important... propagating the cookies from call to call has to be
-            // managed or the jboss backend gets angry...
-            CookieManager mng = new CookieManager();
-            CookieHandler.setDefault(mng);
-            mng.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
-
-            ResponseAbstraction authTokenResponse = GetTokenRequest(mng);
+            ResponseAbstraction authTokenResponse = Authenticate();
             if (authTokenResponse == null) {
                 _logger.debug("failed get token request");
                 return false;
             }
 
-            HashMap<String, String> getTokenResponse = ParseGetTokenResponse(authTokenResponse);
-            if (getTokenResponse == null) {
-                return false;
-            }
-
-            // bbax: foresee divergence.. relies on no data, this isn't really an oAuth thing...
-            if (!InvokeLogin(_configuration.Username, _configuration.Password, mng)) {
-                _logger.error("Failed invoke login end-point.. server error");
-                return false;
-            }
-
-            String verifier = null;
-            try {
-                _configuration.AccessToken = getTokenResponse.get("oauth_token");
-                _configuration.AccessSecret = getTokenResponse.get("oauth_token_secret");
-                String authorizeResponse = AuthorizeToken(mng);
-                if (authorizeResponse == null) {
-                    return false;
-                }
-                _logger.debug(authorizeResponse);
-                verifier = getVerifierFromRedirect(authorizeResponse);
-                if (verifier == null) {
-                    return false;
-                }
-            } catch (Exception exc) {
-                _logger.error(exc.getMessage());
-                return false;
-            }
-
-            Map<String, List<String>> tokens = RequestAccessToken(mng, verifier);
-            if (tokens == null ||
-                    !tokens.containsKey("oauth_token") || tokens.get("oauth_token").size() < 1 ||
-                    !tokens.containsKey("oauth_token_secret") || tokens.get("oauth_token_secret").size() < 1) {
-                return false;
-            }
-
-            if (tokens.get("oauth_token").size() > 1 ||
-                    tokens.get("oauth_token_secret").size() > 1) {
-                _logger.warn("Too many authorization tokens found.");
-            }
+            final String accessTokenResponseString = authTokenResponse.getBody().asString();
+            AccessResponse accessResponse = buildAccessResponsefromJson(accessTokenResponseString);
 
             try {
-                _configuration.AccessToken = tokens.get("oauth_token").get(0);
-                _configuration.AccessSecret = tokens.get("oauth_token_secret").get(0);
+                _configuration.AccessToken = accessResponse.token;
+                _configuration.AccessSecret = accessResponse.secret;
 
                 _logger.debug("Final token: " + _configuration.AccessToken);
                 _logger.debug("Final secret: " + _configuration.AccessSecret);
@@ -369,7 +165,21 @@ public class AcsApiClient {
                 _logger.error("Failed to process tokens: " + exc.getMessage());
                 return false;
             }
+
             return true;
+        }
+    }
+
+    public AccessResponse buildAccessResponsefromJson(String json)  {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_DEFAULT);
+
+        try{
+            AccessResponse accessResponse = mapper.readValue(json, AccessResponse.class);
+            return accessResponse;
+        }catch(Exception exc){
+            return null;
         }
     }
 }

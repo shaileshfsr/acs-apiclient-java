@@ -28,9 +28,16 @@ package com.foresee.auth;
  * Created by bradley.bax on 10/8/2015.
  */
 public class AcsApiClientConfig {
+    /* Consumer Credentials */
     public String ConsumerKey;
     public String ConsumerSecret;
+
+    /* Legacy Foresee Services URI - To be retired*/
     public String ForeseeServicesUri = "https://portal2.foreseeresults.com/services/";
+
+    /* Auth URI: For the purpose of this library the services URI is still the above.
+    Only the authentication URI is changing */
+    public String ForeseeAuthServiceUri = "https://services-edge.foresee.com/";
 
     public String Username;
     public String Password;
@@ -38,19 +45,38 @@ public class AcsApiClientConfig {
     public String AccessToken = null;
     public String AccessSecret = null;
 
-    //"https://portal2.foreseeresults.com/services/client"
+    /* URI for the Login Call */
+    public String AccessLogin = "access";
 
-    // bbax: override these at your own risk.  Im pretty sure they don't change for Foresee...
-    public String RequestTokenAction = "oauth/request_token";
-    public String LoginAction = "login";
-    public String UserAuthorizationAction = "oauth/user_authorization";
-    public String AccessTokenAction = "oauth/access_token";
-    public String CallbackAction = "client";
-
-    public AcsApiClientConfig(String consumerKey, String consumerSecret, String username, String password){
+    /**
+     * Default constructor that initializes the services URI and auth URI
+     * @param consumerKey The consumer key
+     * @param consumerSecret The consumer secret
+     * @param username The username of the user
+     * @param password The password associated with the user
+     */
+    @Deprecated
+    public AcsApiClientConfig(String consumerKey, String consumerSecret,
+                              String username, String password){
         ConsumerKey = consumerKey;
         ConsumerSecret = consumerSecret;
         Username = username;
         Password = password;
+    }
+
+    /**
+     * Additional constructor that accepts the
+     * @param consumerKey The consumer key
+     * @param consumerSecret The consumer secret
+     * @param username The username of the user
+     * @param password The password associated with the user
+     * @param foreseeAuthServiceUri
+     * @param servicesUri
+     */
+    public AcsApiClientConfig(String consumerKey, String consumerSecret,
+                              String username, String password, String foreseeAuthServiceUri, String servicesUri){
+        this(consumerKey, consumerSecret, username, password);
+        ForeseeAuthServiceUri = foreseeAuthServiceUri;
+        ForeseeServicesUri = servicesUri;
     }
 }
